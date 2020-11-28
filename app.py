@@ -1,5 +1,6 @@
 from peewee import *
 import csv
+import os.path as path
 
 from datetime import date, datetime
 
@@ -23,7 +24,8 @@ def load_data():
     with open("inventory.csv") as csvfile:
         reader = csv.reader(csvfile)
         rows = list(reader)
-        for row in rows[1:5]:
+        # for row in rows[1:5]:
+        for row in rows[1:]:
             Product.create(
                 product_name = row[0], 
                 product_quantity = row[2],
@@ -132,12 +134,12 @@ selection_dict = {
     "V" : view_product,
     "A" : add_product,
     "B" : backup_products,
+    "L" : load_data,
 }
 
 
 if __name__ == "__main__":
     db.connect()
     db.create_tables([Product], safe=True)
-    # load_data()
     while True:
         main_menu()
