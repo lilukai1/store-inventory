@@ -1,13 +1,9 @@
 from peewee import *
 import csv
 
-from datetime import datetime
+from datetime import date, datetime
 
 db = SqliteDatabase('inventory.db')
-
-
-# Create your Product model
-# Create a model called Product that the Peewee ORM will use to build the database. The Product model should have five attributes: product_id, product_name, product_quantity, product_price, and date_updated. Use PeeWee's built in primary_key functionality for the product_id field, so that each product will have an automatically generated unique identifier.
 
 
 class Product(Model):
@@ -21,7 +17,7 @@ class Product(Model):
     date_updated = DateTimeField()
 
     def __str__(self):
-        return f"{self.product_id}, {self.product_name}, ${self.product_price/100:.2f}, {self.date_updated}"
+        return f"{self.product_quantity} of {self.product_name} are in stock, at ${self.product_price/100:.2f}. Last Updated: {self.date_updated.strftime('%m/%d/%Y')}"
 
 def load_data():
     with open("inventory.csv") as csvfile:
@@ -32,26 +28,28 @@ def load_data():
                 product_name = row[0], 
                 product_quantity = row[2],
                 product_price = clean_price(row[1]),
-                date_updated = row[3],
+                date_updated = datetime.strptime(row[3],"%m/%d/%Y"),
                 )
 
-def backup_products():
-    print("backup selected")
-    all_product = Product.select()
 
-    with open("inventory1.csv", 'w', newline='') as csvfile:
+
+def backup_products():
+    all_product = Product.select()
+    with open("backup.csv", 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        # writer.writerows(all_product)
+        header = csv.DictWriter(csvfile,fieldnames = ['product_name','product_price','product_quantity','date_updated'])
+        header.writeheader()
         for selected_product in all_product:
-            # writer.writerow(f"{self.product_name}, ${self.product_price/100:.2f}, {self.date_updated}")
-            writer.writerow([selected_product.product_name,(selected_product.product_price/100),selected_product.date_updated])
+            writer.writerow([selected_product.product_name,(selected_product.product_price/100),selected_product.product_quantity,selected_product.date_updated])
+    print("Backup Complete.")
+
 
 def main_menu():
     selections = """
     Options:
-    V - View Product. 
-    A - Add Product.
-    B - Backup to database.
+    V - View a Product. 
+    A - Add a Product.
+    B - Backup database.
     Q - Quit.
 """
     print(selections)
@@ -63,30 +61,56 @@ def get_selection():
     if selection.upper() == "Q":
         exit("Thanks, have a great day!")
     elif selection.upper() not in selection_dict.keys():
-        print("Selection unavailable.")
+        print("Selection unavailable.  Available selections are:")
         main_menu()
     else:
-        selector(selection.upper())
+        menu_selector(selection.upper())
 
 def clean_price(price):
     return price.strip("$").replace(".","")
 
-def show_price(price):
-    return price
+def get_price():
+    while True:
+        try:
+            price = int(input("Product price?  >>  \n"))
+            if price < 0:
+                raise
+            break
+        except:
+            print("Price must be a whole, positive number. Enter in price in pennies.  IE-> $4.99 should be entered as 499.")
+    return(price)
 
-def selector(argument):
+def menu_selector(argument):
     func = selection_dict.get(argument)
     return func()
 
+def get_product_quantity():
+    while True:
+        try:
+            qty = int(input("Product quantity in stock?  >>  \n"))
+            if qty < 0:
+                raise
+            break
+        except:
+            print("Quantity must be a whole, positive number.")
+    return qty
+        
 def add_product():
     product_name = input("What is the product called? >>  \n")
-    product_price = input("Price?  >>  \n")
-    clean_price(product_price)
-    date_updated = datetime.now()
-    product_quantity = input("Product quantity in stock?  >>  \n")
-    Product.create(product_name = product_name, product_price = clean_price(product_price),
-                     date_updated = date_updated, product_quantity = product_quantity)
-    
+    product = Product.get_or_none(Product.product_name == product_name)
+    if product != None:
+        print(f"{product_name} is already in the database.  Updating existing values...")
+        product.product_price = get_price()
+        product.product_quantity = get_product_quantity()
+        product.date_updated = date.today()
+        product.save()
+    else:
+        product_price = get_price()
+        product_quantity = get_product_quantity()
+        Product.get_or_create(product_name = product_name, 
+                    defaults={'product_price' : product_price,
+                    'date_updated' : date.today(), 'product_quantity' : product_quantity})    
+
 
 def view_product():
     select = input("What is the product id?  >>  \n")
@@ -95,13 +119,11 @@ def view_product():
         for selected_product in all_product:
             print(selected_product)
     else:
-        selected_product = Product.get_by_id(select, "No product with that ID.")
-        print(selected_product)
-
-
-
-
-
+        try:
+            selected_product = Product.get_by_id(select)
+            print(selected_product)
+        except DoesNotExist:
+            print("No product with that ID.")
 
 
 ## https://jaxenter.com/implement-switch-case-statement-python-138315.html
